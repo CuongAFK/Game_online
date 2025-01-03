@@ -8,13 +8,20 @@ const JoinRoomForm = ({ onJoinRoom }) => {
                         type="text" 
                         placeholder="Nhập mã phòng" 
                         className="input input-bordered" 
-                        onKeyPress={(e) => {
-                            if (e.key === 'Enter' && e.target.value) {
-                                onJoinRoom(e.target.value);
-                                e.target.value = '';
+                        id="inviteCode"
+                    />
+                    <button 
+                        className="btn btn-primary mt-3"
+                        onClick={() => {
+                            const inviteCode = document.getElementById('inviteCode').value;
+                            if (inviteCode) {
+                                onJoinRoom(inviteCode);
+                                document.getElementById('inviteCode').value = '';
                             }
                         }}
-                    />
+                    >
+                        Tham gia
+                    </button>
                 </div>
             </div>
         </div>

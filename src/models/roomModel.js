@@ -3,7 +3,7 @@ const database = require('../config/db');
 const crypto = require('crypto');
 
 class RoomModel {
-    static async createRoom(hostId, roomName) {
+    static async createRoom(hostId, roomName, maxPlayers = 4) {
         const db = await database.getDb();
         
         // Kiểm tra xem người chơi đã có phòng chưa
@@ -39,7 +39,7 @@ class RoomModel {
             status: 'waiting',
             createdAt: new Date(),
             updatedAt: new Date(),
-            maxPlayers: 4
+            maxPlayers: parseInt(maxPlayers)
         };
 
         const result = await db.collection('rooms').insertOne(room);
@@ -180,6 +180,60 @@ class RoomModel {
                 { 'players.userId': new ObjectId(userId) }
             ]
         });
+    }
+
+    static async kickMember(hostId, roomId, userId) {
+        const db = await database.getDb();
+        
+        console.log('Kicking member with data:', { hostId, roomId, userId });
+        
+        // Kiểm tra xem phòng có tồn tại không và người kick có phải là chủ phòng không
+        const room = await db.collection('rooms').findOne({
+            _id: new ObjectId(roomId),
+            hostId: new ObjectId(hostId)
+        });
+
+        console.log('Found room:', room);
+
+        if (!room) {
+            throw new Error('Không tìm thấy phòng hoặc bạn không phải chủ phòng');
+        }
+
+        // Kiểm tra xem người bị kick có trong phòng không
+        const memberExists = room.players.some(p => p.userId.toString() === userId);
+        console.log('Member exists:', memberExists);
+
+        if (!memberExists) {
+            throw new Error('Thành viên không có trong phòng');
+        }
+
+        // Không cho phép chủ phòng tự kick mình
+        if (userId === hostId) {
+            throw new Error('Không thể kick chủ phòng');
+        }
+
+        // Kick thành viên
+        const result = await db.collection('rooms').findOneAndUpdate(
+            { _id: new ObjectId(roomId) },
+            { 
+                $pull: { 
+                    players: { userId: new ObjectId(userId) }
+                }
+            },
+            { 
+                returnDocument: 'after'  // MongoDB 4.2+
+            }
+        );
+
+        console.log('Update result:', result);
+        
+        // Nếu không có result.value, thử lấy result
+        const updatedRoom = result.value || result;
+        if (!updatedRoom) {
+            throw new Error('Không thể cập nhật phòng');
+        }
+
+        return updatedRoom;
     }
 }
 

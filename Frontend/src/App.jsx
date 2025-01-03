@@ -4,6 +4,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import AuthForm from './components/auth/AuthForm';
 import Home from './pages/Home';
 import LandingPage from './pages/LandingPage';
+import Game from './pages/Game';
 import NotFound from './pages/NotFound';
 
 const PrivateRoute = ({ children }) => {
@@ -37,6 +38,13 @@ function App() {
                 <Route path="/home" element={
                     <PrivateRoute>
                         <Home />
+                    </PrivateRoute>
+                } />
+
+                {/* Trang chơi game */}
+                <Route path="/game/:roomId" element={
+                    <PrivateRoute>
+                        <Game />
                     </PrivateRoute>
                 } />
 

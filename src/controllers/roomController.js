@@ -3,10 +3,10 @@ const { ObjectId } = require('mongodb');
 
 const createRoom = async (req, res) => {
     try {
-        const { name } = req.body;
+        const { name, maxPlayers } = req.body;
         const userId = req.user._id.toString();
 
-        const room = await RoomModel.createRoom(userId, name);
+        const room = await RoomModel.createRoom(userId, name, maxPlayers);
         
         res.status(201).json({
             message: 'Tạo phòng thành công',
@@ -152,10 +152,55 @@ const getCurrentRoom = async (req, res) => {
     }
 };
 
+const kickMember = async (req, res) => {
+    try {
+        const { roomId, userId } = req.body;
+        const hostId = req.user._id.toString();
+
+        console.log('Kick request:', { 
+            roomId, 
+            userId, 
+            hostId,
+            body: req.body 
+        });
+
+        const room = await RoomModel.kickMember(hostId, roomId, userId);
+        
+        if (!room) {
+            throw new Error('Không thể cập nhật phòng');
+        }
+
+        console.log('Kicked successfully, returning room:', room);
+
+        res.json({
+            message: 'Đã kick thành viên ra khỏi phòng',
+            room: {
+                _id: room._id.toString(),
+                name: room.name,
+                inviteCode: room.inviteCode,
+                hostId: room.hostId.toString(),
+                players: room.players.map(p => ({
+                    ...p,
+                    userId: p.userId.toString()
+                })),
+                status: room.status,
+                maxPlayers: room.maxPlayers,
+                createdAt: room.createdAt
+            }
+        });
+    } catch (error) {
+        console.error('Lỗi kick thành viên:', error);
+        res.status(400).json({
+            message: error.message || 'Không thể kick thành viên'
+        });
+    }
+};
+
 module.exports = {
     createRoom,
     joinRoom,
     leaveRoom,
     getRooms,
-    getCurrentRoom
+    getCurrentRoom,
+    kickMember
 };

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import axios from 'axios';
+import ThemeSwitcher from './ThemeSwitcher';
 
 // Thêm token vào tất cả request
 axios.interceptors.request.use(
@@ -59,11 +60,11 @@ const Header = () => {
 
     return (
         <>
-            <div className="navbar bg-base-100 shadow-lg px-4">
+            <div className="navbar bg-base-100">
                 <div className="flex-1">
-                    <span className="text-xl font-bold">Game Online</span>
                 </div>
                 <div className="flex-none gap-2">
+                    <ThemeSwitcher />
                     <div className="dropdown dropdown-end">
                         <label tabIndex={0} className="btn btn-ghost btn-circle avatar">
                             <div className="w-10 rounded-full">

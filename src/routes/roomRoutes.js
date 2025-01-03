@@ -6,7 +6,8 @@ const {
     joinRoom,
     leaveRoom,
     getRooms,
-    getCurrentRoom
+    getCurrentRoom,
+    kickMember
 } = require('../controllers/roomController');
 
 // Áp dụng middleware xác thực cho tất cả các routes
@@ -26,5 +27,8 @@ router.post('/join', joinRoom);
 
 // Rời khỏi phòng
 router.post('/leave', leaveRoom);
+
+// Kick thành viên
+router.post('/kick', kickMember);
 
 module.exports = router;

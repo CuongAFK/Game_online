@@ -14,10 +14,7 @@ const LandingPage = () => {
         if (token && user) {
             setIsLoggedIn(true);
             setUsername(user.username || '');
-            toast.success(`Chào mừng ${user.username || 'bạn'} quay trở lại! 👋`, {
-                position: "top-right",
-                autoClose: 2000,
-            });
+            // Bỏ toast ở đây vì đã có ở LoginForm
         }
     }, []);
 

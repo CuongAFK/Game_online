@@ -34,7 +34,7 @@ const LoginForm = () => {
                 render: `Chào mừng ${response.data.user.username} đến với Game Online! 🎮`,
                 type: "success",
                 isLoading: false,
-                autoClose: 2000,
+                autoClose: false,
                 closeOnClick: true,
                 draggable: true,
             });

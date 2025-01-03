@@ -1,17 +1,167 @@
 import React from 'react';
-import axios from 'axios';
+import { FaCrown, FaTrash, FaDoorOpen, FaUsers, FaCopy, FaUserTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import { FaCrown } from 'react-icons/fa';
+import axios from 'axios';
 
-const RoomList = ({ rooms, loading, onJoinRoom, onLeaveRoom }) => {
+const RoomList = ({ rooms, loading, onJoinRoom, onLeaveRoom, onRefresh }) => {
     const currentUser = JSON.parse(localStorage.getItem('user'));
+    const currentUserId = currentUser._id;
 
-    const isPlayerInRoom = (room) => {
-        return room.players.some(p => p.userId === currentUser._id || p.userId._id === currentUser._id);
+    const handleCopyInviteCode = async (inviteCode) => {
+        try {
+            await navigator.clipboard.writeText(inviteCode);
+            toast.success('Đã sao chép mã phòng!', {
+                position: "top-right",
+                autoClose: 2000,
+            });
+        } catch (error) {
+            console.error('Lỗi sao chép:', error);
+            toast.error('Không thể sao chép mã phòng', {
+                position: "top-right",
+                autoClose: 3000,
+            });
+        }
     };
 
-    const isHostOfRoom = (room) => {
-        return room.hostId === currentUser._id || room.hostId._id === currentUser._id;
+    const handleKickMember = async (roomId, userId) => {
+        try {
+            console.log('Kicking member:', { roomId, userId }); // Debug log
+            await axios.post('/api/rooms/kick', { 
+                roomId: roomId.toString(), 
+                userId: userId.toString() 
+            });
+            toast.success('Đã kick thành viên ra khỏi phòng', {
+                position: "top-right",
+                autoClose: 2000,
+            });
+            // Refresh danh sách phòng sau khi kick
+            if (onRefresh) {
+                onRefresh();
+            }
+        } catch (error) {
+            console.error('Lỗi kick thành viên:', error.response?.data || error);
+            toast.error(error.response?.data?.message || 'Không thể kick thành viên', {
+                position: "top-right",
+                autoClose: 3000,
+            });
+        }
+    };
+
+    const renderMembers = (members, hostId, maxPlayers, roomId) => {
+        const isHost = hostId === currentUserId;
+
+        return (
+            <div className="mt-2">
+                <div className="font-medium text-sm mb-2 flex items-center gap-2">
+                    <FaUsers />
+                    <span>Thành viên
+                        <div className="badge badge-primary mx-2">
+                            {members.length}/{maxPlayers}
+                        </div>
+                        {members.length === maxPlayers && (
+                            <div className="badge badge-error">
+                                Full
+                            </div>
+                        )}
+                    </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                    {members.map((member) => (
+                        <div key={member.userId} 
+                            className="flex items-center gap-2 bg-base-200 rounded-lg p-2 hover:bg-base-300 transition-colors group"
+                        >
+                            <div className="relative">
+                                <img
+                                    src={member.avatarUrl || '/default-avatar.png'}
+                                    alt={member.username}
+                                    className="w-8 h-8 rounded-full object-cover"
+                                />
+                                {member.userId === hostId && (
+                                    <FaCrown 
+                                        className="absolute -top-1 -right-1 text-yellow-500 w-3 h-3"
+                                        title="Chủ phòng"
+                                    />
+                                )}
+                            </div>
+                            <span className="font-medium truncate flex-1">{member.username}</span>
+                            {isHost && member.userId !== hostId && (
+                                <button
+                                    onClick={() => handleKickMember(roomId, member.userId)}
+                                    className="btn btn-ghost btn-xs text-error opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Kick thành viên"
+                                >
+                                    <FaUserTimes />
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const renderRoom = (room) => {
+        const isHost = room.hostId === currentUserId;
+        const isMember = room.players.some(member => member.userId === currentUserId);
+
+        return (
+            <div key={room._id} className="bg-base-100 shadow-xl ring-2 ring-primary/50 w-full max-w-4xl">
+                <div className="card-body">
+                    <div className="flex justify-between items-start">
+
+                        <div>
+                            <h2 className="card-title flex items-center gap-2">
+                                {room.name}
+                            </h2>
+
+                            <p className="text-sm text-base-content/70">
+                                Mã phòng:
+                                <span
+                                    onClick={() => handleCopyInviteCode(room.inviteCode)}
+                                    className="ml-2 font-mono bg-base-200 px-2 py-1 rounded cursor-pointer hover:bg-base-300 active:bg-base-300/70"
+                                    title="Click để sao chép"
+                                >
+                                    {room.inviteCode}
+                                    <FaCopy className="inline-block ml-2 w-3 h-3" />
+                                </span>
+                            </p>
+                        </div>
+                        <div className="flex gap-2">
+                            {isHost ? (
+                                <button
+                                    onClick={() => onLeaveRoom(room._id)}
+                                    className="btn btn-error btn-sm gap-2"
+                                    title="Xóa phòng"
+                                >
+                                    <FaTrash />
+                                    <span className="hidden sm:inline">Xóa phòng</span>
+                                </button>
+                            ) : isMember ? (
+                                <button
+                                    onClick={() => onLeaveRoom(room._id)}
+                                    className="btn btn-warning btn-sm gap-2"
+                                    title="Rời phòng"
+                                >
+                                    <FaDoorOpen />
+                                    <span className="hidden sm:inline">Rời phòng</span>
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={() => onJoinRoom(room.inviteCode)}
+                                    className="btn btn-primary btn-sm gap-2"
+                                >
+                                    <FaUsers />
+                                    <span className="hidden sm:inline">Tham gia</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Danh sách thành viên */}
+                    {renderMembers(room.players, room.hostId, room.maxPlayers, room._id)}
+                </div>
+            </div>
+        );
     };
 
     return (
@@ -24,79 +174,7 @@ const RoomList = ({ rooms, loading, onJoinRoom, onLeaveRoom }) => {
                     </div>
                 ) : rooms.length > 0 ? (
                     <div className="overflow-x-auto">
-                        <table className="table">
-                            <thead>
-                                <tr>
-                                    <th>Tên phòng</th>
-                                    <th>Người chơi</th>
-                                    <th>Mã phòng</th>
-                                    <th>Thành viên</th>
-                                    <th>Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {rooms.map(room => {
-                                    const inRoom = isPlayerInRoom(room);
-                                    const isHost = isHostOfRoom(room);
-                                    
-                                    return (
-                                        <tr key={room._id}>
-                                            <td>{room.name}</td>
-                                            <td>{room.players.length}/{room.maxPlayers}</td>
-                                            <td>{room.inviteCode}</td>
-                                            <td>
-                                                {room.players.map(player => (
-                                                    <div key={player.userId} className="relative group">
-                                                        <div className={`relative w-12 h-12 rounded-full overflow-hidden
-                                                            ${player.role === 'host' 
-                                                                ? 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-base-100' 
-                                                                : ''
-                                                            }`}
-                                                        >
-                                                            <img 
-                                                                src={player.avatarUrl} 
-                                                                alt={player.username}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                            {/* Vương miện cho chủ phòng */}
-                                                            {player.role === 'host' && (
-                                                                <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 text-yellow-400">
-                                                                    <FaCrown size={16} />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                        {/* Tooltip tên người chơi */}
-                                                        <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 
-                                                            opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                                                            bg-black text-white text-xs px-2 py-1 rounded whitespace-nowrap"
-                                                        >
-                                                            {player.username}
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </td>
-                                            <td>
-                                                {inRoom ? (
-                                                    <button 
-                                                        className="btn btn-error btn-sm"
-                                                        onClick={() => onLeaveRoom(room._id)}
-                                                    >
-                                                        {isHost ? 'Xóa phòng' : 'Thoát phòng'}
-                                                    </button>
-                                                ) : (
-                                                    <button 
-                                                        className="btn btn-primary btn-sm"
-                                                        onClick={() => onJoinRoom(room.inviteCode)}
-                                                    >
-                                                        Tham gia
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+                        {rooms.map(room => renderRoom(room))}
                     </div>
                 ) : (
                     <div className="text-center py-4">
