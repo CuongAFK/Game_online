@@ -1,6 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 
-const GameCell = ({ terrain, object, objectCount = 1, size, player }) => {
+const GameCell = ({ terrain, object, objectCount = 1, size, house, rowIndex, colIndex }) => {
     // Random số 0-2 cho loại cỏ và 0-1 cho loại cây
     const grassType = useMemo(() => Math.floor(Math.random() * 3), []);
     const treeTypes = useMemo(() => {
@@ -88,7 +88,8 @@ const GameCell = ({ terrain, object, objectCount = 1, size, player }) => {
             transform: config.transform,
             transformOrigin: 'bottom center',
             transition: 'transform 0.3s ease',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            zIndex: rowIndex + 1
         };
     };
 
@@ -129,7 +130,8 @@ const GameCell = ({ terrain, object, objectCount = 1, size, player }) => {
             backgroundRepeat: 'no-repeat',
             pointerEvents: 'none',
             transition: 'transform 0.3s ease',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            zIndex: rowIndex + 1
         };
     };
 
@@ -159,6 +161,28 @@ const GameCell = ({ terrain, object, objectCount = 1, size, player }) => {
         ));
     };
 
+    // Thêm render house
+    const renderHouse = () => {
+        if (!house) return null;
+        
+        const { type, level = 0, playerId } = house;
+        const houseStyle = {
+            position: 'absolute',
+            width: '80%',
+            height: '80%',
+            top: '10%',
+            left: '10%',
+            backgroundImage: `url(/map/${type}-house-${level}.png)`,
+            backgroundSize: 'contain',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            zIndex: rowIndex + 1,
+            filter: playerId === 'currentPlayer' ? 'drop-shadow(0 0 5px #4CAF50)' : 'none'
+        };
+
+        return <div style={houseStyle} />;
+    };
+
     // Xác định object image và style tương ứng
     const getObjectConfig = () => {
         switch (object) {
@@ -185,21 +209,59 @@ const GameCell = ({ terrain, object, objectCount = 1, size, player }) => {
         }
     };
 
+    // Cập nhật getHouseInfo để hiển thị thông tin player
+    const getHouseInfo = () => {
+        if (!house) return '';
+        const { type, level, playerId } = house;
+        const houseTypes = {
+            knight: 'Hiệp sĩ',
+            devil: 'Ác quỷ',
+            traveler: 'Du hành'
+        };
+        return `Nhà: ${houseTypes[type]} (Cấp ${level + 1})\nThuộc về: Player ${playerId.replace('player', '')}`;
+    };
+
     // Chuyển đổi tên địa hình sang tiếng Việt
     const getTerrainName = () => {
         switch (terrain) {
-            case 'grass': return 'Cỏ';
-            case 'land': return 'Đất';
-            case 'rock': return 'Đá';
-            case 'lake': return 'Hồ';
-            default: return terrain;
+            case 'grass':
+                return 'Cỏ';
+            case 'land':
+                return 'Đất';
+            case 'rock':
+                return 'Đá';
+            case 'lake':
+                return 'Hồ';
+            default:
+                return terrain;
         }
     };
 
-    const objectConfig = getObjectConfig();
-
     // Tạo nội dung tooltip
-    const tooltipContent = `Địa hình: ${getTerrainName()}${objectConfig ? `\nTài nguyên: ${objectConfig.description}` : ''}`;
+    const tooltipContent = useMemo(() => {
+        const lines = [];
+        
+        // Thêm tọa độ
+        lines.push(`Tọa độ: [${colIndex}, ${rowIndex}]`);
+        
+        // Thêm địa hình
+        lines.push(`Địa hình: ${getTerrainName()}`);
+        
+        // Thêm tài nguyên nếu có
+        const objectConfig = getObjectConfig();
+        if (objectConfig) {
+            lines.push(`Tài nguyên: ${objectConfig.description}`);
+        }
+        
+        // Thêm thông tin nhà nếu có
+        if (house) {
+            lines.push(...getHouseInfo().split('\n'));
+        }
+        
+        return lines.join('\n');
+    }, [terrain, object, objectCount, house, rowIndex, colIndex]);
+
+    const objectConfig = getObjectConfig();
 
     const [tooltipPosition, setTooltipPosition] = useState('bottom'); // 'bottom', 'top', 'left', 'right'
     const cellRef = useRef(null);
@@ -256,29 +318,33 @@ const GameCell = ({ terrain, object, objectCount = 1, size, player }) => {
         };
     }, []);
 
-    // Tạo class cho tooltip dựa vào vị trí
+    // Tính toán vị trí tooltip dựa vào số dòng
     const getTooltipClass = () => {
-        const baseClass = "absolute px-2 py-1 bg-black/80 text-white text-sm rounded pointer-events-none opacity-0 group-hover:opacity-100 whitespace-pre z-50 transition-all duration-200";
+        const lines = tooltipContent.split('\n').length;
+        const baseClass = "absolute px-2 py-1 bg-black/80 text-white text-xs rounded pointer-events-none opacity-0 group-hover:opacity-100 whitespace-pre z-50 transition-all duration-200 min-w-[150px]";
+        
+        // Điều chỉnh vị trí dựa vào số dòng
+        const offsetY = lines * 12; // 12px cho mỗi dòng
         
         switch (tooltipPosition) {
             case 'bottom':
-                return `${baseClass} left-1/2 -translate-x-1/2 top-full mt-2`;
+                return `${baseClass} left-1/2 -translate-x-1/2 top-full mt-1`;
             case 'top':
-                return `${baseClass} left-1/2 -translate-x-1/2 bottom-full mb-2`;
+                return `${baseClass} left-1/2 -translate-x-1/2 bottom-full mb-1`;
             case 'left':
-                return `${baseClass} right-full top-1/2 -translate-y-1/2 mr-2`;
+                return `${baseClass} right-full top-0 -translate-y-1/4 mr-1`;
             case 'right':
-                return `${baseClass} left-full top-1/2 -translate-y-1/2 ml-2`;
+                return `${baseClass} left-full top-0 -translate-y-1/4 ml-1`;
             case 'bottom-right':
-                return `${baseClass} left-0 top-full mt-2`;
+                return `${baseClass} left-0 top-full mt-1`;
             case 'bottom-left':
-                return `${baseClass} right-0 top-full mt-2`;
+                return `${baseClass} right-0 top-full mt-1`;
             case 'top-right':
-                return `${baseClass} left-0 bottom-full mb-2`;
+                return `${baseClass} left-0 bottom-full mb-1`;
             case 'top-left':
-                return `${baseClass} right-0 bottom-full mb-2`;
+                return `${baseClass} right-0 bottom-full mb-1`;
             default:
-                return `${baseClass} left-1/2 -translate-x-1/2 bottom-full mb-2`;
+                return `${baseClass} left-1/2 -translate-x-1/2 bottom-full mb-1`;
         }
     };
 
@@ -294,6 +360,9 @@ const GameCell = ({ terrain, object, objectCount = 1, size, player }) => {
                 
                 {/* Layer 2: Object */}
                 {objectConfig && objectConfig.render()}
+
+                {/* Layer 3: House */}
+                {renderHouse()}
             </div>
 
             {/* Tooltip */}

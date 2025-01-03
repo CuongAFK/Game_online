@@ -2,15 +2,15 @@ import React from 'react';
 import GameCell from './GameCell';
 
 const GameMap = ({ map, config }) => {
-    const mapStyle = {
-        display: 'grid',
-        gridTemplateColumns: `repeat(${config.COLS}, ${config.CELL_SIZE}px)`,
-        width: 'fit-content',
-        margin: '20px auto',
-    };
-
     return (
-        <div style={mapStyle}>
+        <div 
+            className="grid gap-0.5 p-4"
+            style={{
+                gridTemplateColumns: `repeat(${config.COLS}, ${config.CELL_SIZE}px)`,
+                width: 'fit-content',
+                margin: '0 auto'
+            }}
+        >
             {map.map((row, rowIndex) => 
                 row.map((cell, colIndex) => (
                     <GameCell
@@ -18,7 +18,10 @@ const GameMap = ({ map, config }) => {
                         terrain={cell.terrain}
                         object={cell.object}
                         objectCount={cell.objectCount}
+                        house={cell.house}
                         size={config.CELL_SIZE}
+                        rowIndex={rowIndex}
+                        colIndex={colIndex}
                     />
                 ))
             )}

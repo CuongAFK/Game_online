@@ -3,12 +3,12 @@ import GameMap from '../components/game/GameMap';
 
 const Game = () => {
     const containerRef = useRef(null);
-    const numPlayers = 4; // Số người chơi (có thể lấy từ props hoặc context)
+    const numPlayers = 4; // Số người chơi (2-8)
 
     // Tính kích thước bản đồ dựa trên số người chơi
     const [mapSize] = useState(() => {
         const baseSize = 20; // Kích thước cơ bản cho 2 người chơi
-        const additionalRows = Math.max(0, numPlayers - 2) * 10; // Thêm 10 hàng cho mỗi người chơi thêm
+        const additionalRows = Math.max(0, numPlayers - 2) * 5; // Thêm 5 hàng cho mỗi người chơi thêm
         return {
             ROWS: baseSize + additionalRows, // Chiều Y tăng theo số người chơi
             COLS: 30 // Chiều X cố định
@@ -67,6 +67,109 @@ const Game = () => {
         tree: ['grass'],            // Cây chỉ mọc trên cỏ
         stone: ['rock'],            // Đá chỉ xuất hiện trên núi đá
         gold: ['rock']              // Vàng chỉ xuất hiện trên núi đá
+    };
+
+    // Config cho spawn nhà
+    const HOUSE_SPAWN_STRATEGY = {
+        // Khoảng cách tối thiểu giữa các nhà
+        MIN_DISTANCE: 8,
+        
+        // Địa hình phù hợp cho nhà
+        VALID_TERRAINS: ['grass', 'land'],
+        
+        // Vùng spawn cho từng player (tính theo %)
+        getSpawnZones: (numPlayers) => {
+            const zones = {};
+            if (numPlayers <= 4) {
+                // 4 góc
+                zones.player1 = { startRow: 0, endRow: '25%', startCol: 0, endCol: '25%' };
+                zones.player2 = { startRow: 0, endRow: '25%', startCol: '75%', endCol: '100%' };
+                zones.player3 = { startRow: '75%', endRow: '100%', startCol: 0, endCol: '25%' };
+                zones.player4 = { startRow: '75%', endRow: '100%', startCol: '75%', endCol: '100%' };
+            } else {
+                // Chia đều theo chiều dọc
+                const heightPerPlayer = 100 / numPlayers;
+                for (let i = 0; i < numPlayers; i++) {
+                    const isLeft = i % 2 === 0;
+                    zones[`player${i + 1}`] = {
+                        startRow: `${heightPerPlayer * i}%`,
+                        endRow: `${heightPerPlayer * (i + 1)}%`,
+                        startCol: isLeft ? 0 : '75%',
+                        endCol: isLeft ? '25%' : '100%'
+                    };
+                }
+            }
+            return zones;
+        },
+
+        // Phân phối phe cho players
+        HOUSE_TYPES: ['knight', 'devil', 'traveler']
+    };
+
+    // Kiểm tra vị trí spawn nhà hợp lệ
+    const isValidHousePosition = (map, row, col, playerId) => {
+        // Kiểm tra địa hình
+        if (!HOUSE_SPAWN_STRATEGY.VALID_TERRAINS.includes(map[row][col].terrain)) {
+            return false;
+        }
+
+        // Kiểm tra khoảng cách với nhà khác
+        for (let r = 0; r < map.length; r++) {
+            for (let c = 0; c < map[0].length; c++) {
+                if (map[r][c].house && map[r][c].house.playerId !== playerId) {
+                    const distance = Math.sqrt(Math.pow(row - r, 2) + Math.pow(col - c, 2));
+                    if (distance < HOUSE_SPAWN_STRATEGY.MIN_DISTANCE) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    };
+
+    // Spawn nhà cho players
+    const spawnHouses = (map, numPlayers) => {
+        const zones = HOUSE_SPAWN_STRATEGY.getSpawnZones(numPlayers);
+        
+        for (let i = 0; i < numPlayers; i++) {
+            const playerId = `player${i + 1}`;
+            const zone = zones[playerId];
+            const houseType = HOUSE_SPAWN_STRATEGY.HOUSE_TYPES[i % HOUSE_SPAWN_STRATEGY.HOUSE_TYPES.length];
+            
+            // Chuyển đổi phần trăm thành số ô thực tế
+            const startRow = typeof zone.startRow === 'string' ? 
+                Math.floor(map.length * parseInt(zone.startRow) / 100) : zone.startRow;
+            const endRow = typeof zone.endRow === 'string' ? 
+                Math.floor(map.length * parseInt(zone.endRow) / 100) : zone.endRow;
+            const startCol = typeof zone.startCol === 'string' ? 
+                Math.floor(map[0].length * parseInt(zone.startCol) / 100) : zone.startCol;
+            const endCol = typeof zone.endCol === 'string' ? 
+                Math.floor(map[0].length * parseInt(zone.endCol) / 100) : zone.endCol;
+
+            // Tìm vị trí phù hợp trong vùng spawn
+            let placed = false;
+            let attempts = 0;
+            while (!placed && attempts < 100) {
+                const row = Math.floor(Math.random() * (endRow - startRow)) + startRow;
+                const col = Math.floor(Math.random() * (endCol - startCol)) + startCol;
+                
+                if (isValidHousePosition(map, row, col, playerId)) {
+                    map[row][col].house = {
+                        type: houseType,
+                        level: 0,
+                        playerId: playerId,
+                        isCurrentPlayer: playerId === 'player1' // Giả sử player1 là người chơi hiện tại
+                    };
+                    // Xóa object ở vị trí đặt nhà
+                    map[row][col].object = null;
+                    map[row][col].objectCount = 0;
+                    placed = true;
+                }
+                attempts++;
+            }
+        }
+        return map;
     };
 
     // Chọn ngẫu nhiên địa hình dựa trên trọng số
@@ -149,13 +252,11 @@ const Game = () => {
                     let attempts = 0;
                     let selectedTerrain;
 
-                    // Thử tối đa 20 lần để tìm địa hình phù hợp
                     do {
                         selectedTerrain = getRandomTerrain();
                         attempts++;
                     } while (!isValidTerrain(terrainMap, row, col, selectedTerrain) && attempts < 20);
 
-                    // Nếu không tìm được địa hình phù hợp, mặc định là cỏ
                     terrainMap[row][col] = {
                         terrain: isValidTerrain(terrainMap, row, col, selectedTerrain) ? selectedTerrain : 'grass'
                     };
@@ -175,7 +276,10 @@ const Game = () => {
             }
         }
 
-        return terrainMap;
+        // Layer 3: Houses
+        const mapWithHouses = spawnHouses(terrainMap, numPlayers);
+        
+        setGameMap(mapWithHouses);
     };
 
     // Tính toán kích thước ô để map vừa với chiều rộng màn hình
@@ -186,13 +290,13 @@ const Game = () => {
 
         // Tính cellSize dựa trên chiều rộng container và số cột
         console.log("containerWidth:" + containerWidth);
-        const cellSize = Math.floor(((containerWidth) / mapSize.COLS) - 1);
+        const cellSize = Math.floor(((containerWidth) / mapSize.COLS) - 3);
         console.log("cellSize:" + cellSize);
         setCellSize(cellSize);
     };
 
     useEffect(() => {
-        setGameMap(generateMap());
+        generateMap();
         calculateCellSize();
 
         const handleResize = () => calculateCellSize();
