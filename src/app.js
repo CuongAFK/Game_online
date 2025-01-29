@@ -4,23 +4,43 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const path = require('path');
+const http = require('http');
+const { Server } = require('socket.io');
 
 console.log('🔍 Đang khởi động server...');
 console.log('📁 Đường dẫn hiện tại:', __dirname);
 console.log('🔑 MONGODB_URI:', process.env.MONGODB_URI ? '✅ Đã cấu hình' : '❌ Chưa cấu hình');
 
 const database = require('./config/db');
-const gameModel = require('./models/gameModel');
 const authRoutes = require('./routes/authRoutes');
 const roomRoutes = require('./routes/roomRoutes');
+const configRoutes = require('./gameServer/gameRoutes/configRoutes');
+const setupSocketHandlers = require('./services/socketHandlers');
 
-// Import các routes
-const gameRoutes = require('./routes/gameRoutes');
 
 const app = express();
+const server = http.createServer(app);
+
+// Cấu hình CORS cho socket.io
+const io = new Server(server, {
+    cors: {
+        origin: 'http://localhost:5173', // Frontend URL
+        methods: ['GET', 'POST'],
+        credentials: true
+    }
+});
+
+// Thiết lập socket handlers
+setupSocketHandlers(io);
+
+// Lưu io vào app để có thể sử dụng trong routes
+app.set('io', io);
 
 // Cấu hình middleware
-app.use(cors()); // Cho phép truy cập từ các domain khác
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true
+}));
 app.use(morgan('dev')); // Logger để ghi lại các request
 app.use(express.json()); // Xử lý dữ liệu JSON
 app.use(express.urlencoded({ extended: true })); // Xử lý dữ liệu từ form
@@ -28,24 +48,12 @@ app.use(express.urlencoded({ extended: true })); // Xử lý dữ liệu từ fo
 // Kết nối MongoDB và khởi tạo app
 async function initializeApp() {
     console.log('🚀 Bắt đầu khởi tạo ứng dụng...');
+    await database.connect();
     
     try {
-        // Kết nối database
-        console.log('🔌 Đang kết nối với MongoDB...');
-        const db = await database.connect();
-        console.log('✨ Kết nối database thành công!');
-        
-        // Khởi tạo models
-        gameModel.initialize(db);
-        console.log('📦 Đã khởi tạo models');
-        
         // Cấu hình thư mục chứa file tĩnh (css, js, images,...)
         app.use(express.static(path.join(__dirname, 'public')));
         console.log('📂 Đã cấu hình thư mục tĩnh');
-
-        // Cấu hình routes cho game
-        app.use('/api/game', gameRoutes);
-        console.log('🛣️ Đã cấu hình routes');
 
         // Cấu hình routes xác thực
         app.use('/api/auth', authRoutes);
@@ -53,7 +61,11 @@ async function initializeApp() {
 
         // Cấu hình routes phòng game
         app.use('/api/rooms', roomRoutes);
-        console.log('🛣️ Đã cấu hình routes phòng game');
+        console.log('🏠 Đã cấu hình routes phòng game');
+
+        // Cấu hình routes cho game config
+        app.use('/api/rooms', configRoutes);
+        console.log('⚙️ Đã cấu hình routes game config');
 
         // Middleware xử lý lỗi
         app.use((err, req, res, next) => {
@@ -66,7 +78,7 @@ async function initializeApp() {
 
         // Khởi động server
         const PORT = process.env.PORT || 3000;
-        app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`
 🎮 Game Server đã sẵn sàng!
 🌐 Server: http://localhost:${PORT}

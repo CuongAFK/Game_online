@@ -1,5 +1,5 @@
 const RoomModel = require('../models/roomModel');
-const { ObjectId } = require('mongodb');
+
 
 const createRoom = async (req, res) => {
     try {
@@ -164,35 +164,39 @@ const kickMember = async (req, res) => {
             body: req.body 
         });
 
-        const room = await RoomModel.kickMember(hostId, roomId, userId);
+        // Kiểm tra nếu là chủ phòng
+        if (userId === hostId) {
+            return res.status(400).json({ message: 'Không thể kick chủ phòng' });
+        }
+
+        const room = await RoomModel.kickMember(roomId, hostId, userId);
         
         if (!room) {
             throw new Error('Không thể cập nhật phòng');
         }
 
-        console.log('Kicked successfully, returning room:', room);
+        // Phân biệt thông báo giữa bot và người dùng
+        const message = userId.startsWith('bot_') 
+            ? 'Đã xóa bot khỏi phòng'
+            : 'Đã kick thành viên ra khỏi phòng';
 
         res.json({
-            message: 'Đã kick thành viên ra khỏi phòng',
+            message,
             room: {
                 _id: room._id.toString(),
                 name: room.name,
                 inviteCode: room.inviteCode,
                 hostId: room.hostId.toString(),
-                players: room.players.map(p => ({
-                    ...p,
-                    userId: p.userId.toString()
-                })),
-                status: room.status,
-                maxPlayers: room.maxPlayers,
-                createdAt: room.createdAt
+                players: room.players.map(player => ({
+                    ...player,
+                    userId: player.userId.toString ? player.userId.toString() : player.userId
+                }))
             }
         });
+
     } catch (error) {
-        console.error('Lỗi kick thành viên:', error);
-        res.status(400).json({
-            message: error.message || 'Không thể kick thành viên'
-        });
+        console.error('Lỗi khi kick thành viên:', error);
+        res.status(400).json({ message: error.message });
     }
 };
 
